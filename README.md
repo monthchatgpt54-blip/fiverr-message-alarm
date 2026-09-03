@@ -1,7 +1,8 @@
-# Fiverr Message Alarm
+# Night Watch v2
 
-Personal Android app that listens for notifications from the official Fiverr
-Android package (`com.fiverr.fiverr`) and starts an alarm locally.
+Personal Android app that listens locally for notifications from Fiverr
+(`com.fiverr.fiverr`) and Upwork (`com.upwork.android.apps.main`). It displays
+the notification title/client name and preview, then starts a repeated alarm.
 
 ## Privacy
 
@@ -12,13 +13,15 @@ Android package (`com.fiverr.fiverr`) and starts an alarm locally.
 
 ## First-time setup
 
-1. Install the APK and open **Fiverr Message Alarm**.
+1. Install the APK and open **Night Watch**.
 2. Allow app notifications.
 3. Tap **Enable notification access** and enable this app.
 4. On Android 14+, tap **Allow full-screen alarms** and enable access.
-5. Exclude Fiverr and Fiverr Message Alarm from battery optimization.
-6. Tap **Test alarm now**.
+5. Exclude Fiverr, Upwork and Night Watch from battery optimization.
+6. Enable auto-start for Night Watch if the phone provides that setting.
+7. Run both test buttons.
 
-The current version alarms for every notification posted by Fiverr so that a
-buyer message is not missed. The master switch, maximum-volume behavior and
-duration are configurable in the app.
+Each cycle rings for 2 minutes, pauses for 1 minute, and repeats up to 3 times.
+The Stop button cancels the active alarm and every remaining repeat. To avoid
+missing a client, reliable mode reacts to every notification from either
+enabled marketplace; it does not attempt to read either private inbox directly.

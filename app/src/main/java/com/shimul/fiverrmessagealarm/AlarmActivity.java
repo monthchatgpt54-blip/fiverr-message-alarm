@@ -35,10 +35,15 @@ public class AlarmActivity extends Activity {
     }
 
     private LinearLayout buildScreen(Intent intent) {
-        String titleValue = intent.getStringExtra(AlarmService.EXTRA_TITLE);
-        String textValue = intent.getStringExtra(AlarmService.EXTRA_TEXT);
-        if (titleValue == null) titleValue = "New Fiverr notification";
-        if (textValue == null) textValue = "Open Fiverr to view it.";
+        String platform = intent.getStringExtra(NightWatchAlarmService.EXTRA_PLATFORM);
+        String targetPackage = intent.getStringExtra(NightWatchAlarmService.EXTRA_PACKAGE);
+        String titleValue = intent.getStringExtra(NightWatchAlarmService.EXTRA_TITLE);
+        String textValue = intent.getStringExtra(NightWatchAlarmService.EXTRA_TEXT);
+        if (platform == null || platform.trim().isEmpty()) platform = "Night Watch";
+        if (targetPackage == null) targetPackage = "";
+        if (titleValue == null) titleValue = "New " + platform + " message";
+        if (textValue == null) textValue = "Open " + platform + " to view it.";
+        final String appPackage = targetPackage;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -46,7 +51,7 @@ public class AlarmActivity extends Activity {
         root.setPadding(dp(28), dp(36), dp(28), dp(36));
         root.setBackgroundColor(Color.rgb(25, 31, 35));
 
-        TextView badge = text("FIVERR MESSAGE", 14, Color.rgb(60, 220, 130));
+        TextView badge = text(platform.toUpperCase() + " MESSAGE", 14, Color.rgb(60, 220, 130));
         root.addView(badge);
 
         TextView title = text(titleValue, 27, Color.WHITE);
@@ -68,12 +73,12 @@ public class AlarmActivity extends Activity {
         root.addView(stop, fullWidth());
 
         Button open = new Button(this);
-        open.setText("Open Fiverr");
+        open.setText("Open " + platform);
         open.setTextSize(18);
         open.setAllCaps(false);
         open.setOnClickListener(v -> {
-            stopService(new Intent(this, AlarmService.class));
-            Intent launch = getPackageManager().getLaunchIntentForPackage("com.fiverr.fiverr");
+            stopService(new Intent(this, NightWatchAlarmService.class));
+            Intent launch = getPackageManager().getLaunchIntentForPackage(appPackage);
             if (launch != null) startActivity(launch);
             finish();
         });
@@ -84,7 +89,7 @@ public class AlarmActivity extends Activity {
     }
 
     private void stopAndFinish() {
-        stopService(new Intent(this, AlarmService.class));
+        stopService(new Intent(this, NightWatchAlarmService.class));
         finishAndRemoveTask();
     }
 

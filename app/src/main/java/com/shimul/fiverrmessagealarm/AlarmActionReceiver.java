@@ -7,8 +7,8 @@ import android.content.Intent;
 public class AlarmActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent != null && AlarmService.ACTION_STOP.equals(intent.getAction())) {
-            context.stopService(new Intent(context, AlarmService.class));
+        if (intent != null && NightWatchAlarmService.ACTION_STOP.equals(intent.getAction())) {
+            context.stopService(new Intent(context, NightWatchAlarmService.class));
         }
     }
 }

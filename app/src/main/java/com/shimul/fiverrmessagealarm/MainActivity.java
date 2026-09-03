@@ -14,13 +14,10 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -32,7 +29,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        AlarmService.createChannel(this);
+        NightWatchAlarmService.createChannel(this);
         setContentView(buildScreen());
         requestNotificationPermissionIfNeeded();
     }
@@ -53,23 +50,39 @@ public class MainActivity extends Activity {
         scroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView title = text("Fiverr Message Alarm", 26, Color.rgb(28, 30, 33));
+        TextView title = text("Night Watch v2", 26, Color.rgb(28, 30, 33));
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         root.addView(title);
 
         TextView subtitle = text(
-                "A Fiverr notification will trigger a loud alarm on this phone. No Fiverr login or external server is used.",
+                "24-hour local alarm watch for Fiverr and Upwork notifications. No marketplace login or external server is used.",
                 15, Color.DKGRAY);
         subtitle.setPadding(0, dp(8), 0, dp(22));
         root.addView(subtitle);
 
         CheckBox enabled = new CheckBox(this);
-        enabled.setText("Alarm enabled");
+        enabled.setText("24-hour Night Watch enabled");
         enabled.setTextSize(17);
         enabled.setChecked(AppPrefs.isEnabled(this));
         enabled.setOnCheckedChangeListener((button, checked) ->
                 AppPrefs.get(this).edit().putBoolean(AppPrefs.ENABLED, checked).apply());
         root.addView(enabled, matchWrap());
+
+        CheckBox fiverr = new CheckBox(this);
+        fiverr.setText("Watch Fiverr notifications");
+        fiverr.setTextSize(16);
+        fiverr.setChecked(AppPrefs.isFiverrEnabled(this));
+        fiverr.setOnCheckedChangeListener((button, checked) ->
+                AppPrefs.get(this).edit().putBoolean(AppPrefs.FIVERR_ENABLED, checked).apply());
+        root.addView(fiverr, matchWrap());
+
+        CheckBox upwork = new CheckBox(this);
+        upwork.setText("Watch Upwork notifications");
+        upwork.setTextSize(16);
+        upwork.setChecked(AppPrefs.isUpworkEnabled(this));
+        upwork.setOnCheckedChangeListener((button, checked) ->
+                AppPrefs.get(this).edit().putBoolean(AppPrefs.UPWORK_ENABLED, checked).apply());
+        root.addView(upwork, matchWrap());
 
         CheckBox maxVolume = new CheckBox(this);
         maxVolume.setText("Temporarily use maximum alarm volume");
@@ -79,27 +92,11 @@ public class MainActivity extends Activity {
                 AppPrefs.get(this).edit().putBoolean(AppPrefs.MAX_VOLUME, checked).apply());
         root.addView(maxVolume, matchWrap());
 
-        addSectionLabel(root, "Alarm duration");
-        Spinner duration = new Spinner(this);
-        String[] labels = {"30 seconds", "1 minute", "5 minutes", "Until I stop it"};
-        int[] values = {30, 60, 300, 0};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, labels);
-        duration.setAdapter(adapter);
-        int saved = AppPrefs.durationSeconds(this);
-        int selected = 1;
-        for (int i = 0; i < values.length; i++) {
-            if (values[i] == saved) selected = i;
-        }
-        duration.setSelection(selected);
-        duration.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                AppPrefs.get(MainActivity.this).edit()
-                        .putInt(AppPrefs.DURATION, values[position]).apply();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-        root.addView(duration, matchWrap());
+        addSectionLabel(root, "Alarm cycle");
+        TextView cycle = text(
+                "2 minutes ringing → 1 minute pause → repeated up to 3 times. Stop cancels the entire sequence.",
+                15, Color.DKGRAY);
+        root.addView(cycle);
 
         addSectionLabel(root, "Required access");
         accessStatus = text("", 14, Color.DKGRAY);
@@ -136,22 +133,30 @@ public class MainActivity extends Activity {
         root.addView(batteryButton, buttonParams());
 
         addSectionLabel(root, "Test");
-        Button test = button("Test alarm now");
-        test.setTextColor(Color.WHITE);
-        test.setBackgroundColor(Color.rgb(29, 137, 79));
-        test.setOnClickListener(v -> {
-            Intent intent = AlarmService.newIntent(this,
-                    "Test Fiverr message", "This is a local test alarm.");
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent); else startService(intent);
-        });
-        root.addView(test, buttonParams());
+        Button testFiverr = button("Test Fiverr alarm");
+        testFiverr.setTextColor(Color.WHITE);
+        testFiverr.setBackgroundColor(Color.rgb(29, 137, 79));
+        testFiverr.setOnClickListener(v -> startTest(
+                "Fiverr", "com.fiverr.fiverr", "Test Client", "This is a local Fiverr test message."));
+        root.addView(testFiverr, buttonParams());
+
+        Button testUpwork = button("Test Upwork alarm");
+        testUpwork.setOnClickListener(v -> startTest(
+                "Upwork", "com.upwork.android.apps.main", "Test Client", "This is a local Upwork test message."));
+        root.addView(testUpwork, buttonParams());
 
         TextView note = text(
-                "Important: keep Fiverr notifications enabled. This app reacts only after Android receives a Fiverr notification.",
+                "Important: keep Fiverr and Upwork notifications enabled, allow auto-start if your phone offers it, and exclude all three apps from battery optimization.",
                 13, Color.GRAY);
         note.setPadding(0, dp(22), 0, 0);
         root.addView(note);
         return scroll;
+    }
+
+    private void startTest(String platform, String packageName, String title, String message) {
+        Intent intent = NightWatchAlarmService.newIntent(
+                this, platform, packageName, title, message);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent); else startService(intent);
     }
 
     private void requestNotificationPermissionIfNeeded() {
