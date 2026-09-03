@@ -2,3 +2,9 @@
 **/build/
 local.properties
 *.iml
+keystore/
+*.jks
+*.keystore
+*.p12
+keystore.properties
+.env

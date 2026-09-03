@@ -1,6 +1,8 @@
 package com.shimul.fiverrmessagealarm;
 
 import android.app.Activity;
+import android.app.KeyguardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
@@ -34,6 +36,12 @@ public class AlarmActivity extends Activity {
         setContentView(buildScreen(intent));
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        setContentView(buildScreen(getIntent()));
+    }
+
     private LinearLayout buildScreen(Intent intent) {
         String platform = intent.getStringExtra(NightWatchAlarmService.EXTRA_PLATFORM);
         String targetPackage = intent.getStringExtra(NightWatchAlarmService.EXTRA_PACKAGE);
@@ -43,6 +51,11 @@ public class AlarmActivity extends Activity {
         if (targetPackage == null) targetPackage = "";
         if (titleValue == null) titleValue = "New " + platform + " message";
         if (textValue == null) textValue = "Open " + platform + " to view it.";
+        KeyguardManager keyguard = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        if (keyguard != null && keyguard.isDeviceLocked()) {
+            titleValue = "New " + platform + " message";
+            textValue = "Unlock your phone to view the client name and message.";
+        }
         final String appPackage = targetPackage;
 
         LinearLayout root = new LinearLayout(this);
@@ -69,6 +82,7 @@ public class AlarmActivity extends Activity {
         stop.setText("Stop alarm");
         stop.setTextSize(18);
         stop.setAllCaps(false);
+        stop.setFilterTouchesWhenObscured(true);
         stop.setOnClickListener(v -> stopAndFinish());
         root.addView(stop, fullWidth());
 
@@ -76,6 +90,7 @@ public class AlarmActivity extends Activity {
         open.setText("Open " + platform);
         open.setTextSize(18);
         open.setAllCaps(false);
+        open.setFilterTouchesWhenObscured(true);
         open.setOnClickListener(v -> {
             stopService(new Intent(this, NightWatchAlarmService.class));
             Intent launch = getPackageManager().getLaunchIntentForPackage(appPackage);

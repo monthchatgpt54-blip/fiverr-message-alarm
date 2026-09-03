@@ -16,9 +16,15 @@
 
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:icon="@drawable/ic_night_watch"
         android:label="Night Watch"
+        android:roundIcon="@drawable/ic_night_watch"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:taskAffinity=""
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".AlarmActivity"

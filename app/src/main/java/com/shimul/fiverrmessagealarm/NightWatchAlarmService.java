@@ -44,6 +44,8 @@ public class NightWatchAlarmService extends Service {
     private AudioManager audioManager;
     private int originalAlarmVolume = -1;
     private int currentCycle = 1;
+    private boolean sequenceActive;
+    private boolean paused;
     private String platform = "Night Watch";
     private String targetPackage = "";
     private String title = "New client message";
@@ -67,7 +69,7 @@ public class NightWatchAlarmService extends Service {
                 CHANNEL_ID, "Night Watch alarms", NotificationManager.IMPORTANCE_HIGH);
         alarmChannel.setDescription("Repeated alarm for Fiverr and Upwork notifications");
         alarmChannel.enableVibration(true);
-        alarmChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        alarmChannel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         alarmChannel.setSound(null, null);
         manager.createNotificationChannel(alarmChannel);
 
@@ -75,7 +77,7 @@ public class NightWatchAlarmService extends Service {
                 FALLBACK_CHANNEL_ID, "Night Watch fallback alerts", NotificationManager.IMPORTANCE_HIGH);
         fallbackChannel.setDescription("Backup alert if Android blocks the repeating alarm service");
         fallbackChannel.enableVibration(true);
-        fallbackChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        fallbackChannel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         fallbackChannel.setSound(defaultAlarmUri(), alarmAttributes());
         manager.createNotificationChannel(fallbackChannel);
     }
@@ -86,13 +88,21 @@ public class NightWatchAlarmService extends Service {
         Intent screen = alarmScreenIntent(context, platform, packageName, title, text);
         PendingIntent fullScreen = PendingIntent.getActivity(context, 40, screen,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification publicVersion = new Notification.Builder(context, FALLBACK_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_night_watch_notification)
+                .setContentTitle(platform + " message")
+                .setContentText("Unlock to view client details")
+                .setCategory(Notification.CATEGORY_MESSAGE)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .build();
         Notification notification = new Notification.Builder(context, FALLBACK_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                .setSmallIcon(R.drawable.ic_night_watch_notification)
                 .setContentTitle(platform + ": " + title)
                 .setContentText(text)
                 .setStyle(new Notification.BigTextStyle().bigText(text))
                 .setCategory(Notification.CATEGORY_MESSAGE)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setVisibility(Notification.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion)
                 .setPriority(Notification.PRIORITY_MAX)
                 .setContentIntent(fullScreen)
                 .setFullScreenIntent(fullScreen, true)
@@ -120,6 +130,11 @@ public class NightWatchAlarmService extends Service {
         targetPackage = safe(intent, EXTRA_PACKAGE, "");
         title = safe(intent, EXTRA_TITLE, "New " + platform + " message");
         message = safe(intent, EXTRA_TEXT, "Open " + platform + " to view the message.");
+        if (sequenceActive) {
+            updateNotification(paused);
+            return START_NOT_STICKY;
+        }
+        sequenceActive = true;
         currentCycle = 1;
         cancelScheduledPhases();
         stopAlertMedia();
@@ -138,6 +153,7 @@ public class NightWatchAlarmService extends Service {
     }
 
     private void startRingPhase() {
+        paused = false;
         startAlarmSound();
         startVibration();
         updateNotification(false);
@@ -150,6 +166,7 @@ public class NightWatchAlarmService extends Service {
             stopSelf();
             return;
         }
+        paused = true;
         updateNotification(true);
         handler.postDelayed(startNextCycle, AppPrefs.PAUSE_SECONDS * 1000L);
     }
@@ -183,14 +200,25 @@ public class NightWatchAlarmService extends Service {
                 ? "Paused - alarm " + (currentCycle + 1) + " of " + AppPrefs.REPEAT_COUNT + " in 1 minute"
                 : "Alarm " + currentCycle + " of " + AppPrefs.REPEAT_COUNT + " - rings for 2 minutes";
 
+        Notification publicVersion = new Notification.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_night_watch_notification)
+                .setContentTitle(platform + " message alarm")
+                .setContentText("Unlock to view client details")
+                .setSubText(phase)
+                .setCategory(Notification.CATEGORY_ALARM)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setOngoing(true)
+                .build();
+
         return new Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                .setSmallIcon(R.drawable.ic_night_watch_notification)
                 .setContentTitle(platform + ": " + title)
                 .setContentText(message)
                 .setStyle(new Notification.BigTextStyle().bigText(message))
                 .setSubText(phase)
                 .setCategory(Notification.CATEGORY_ALARM)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setVisibility(Notification.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion)
                 .setPriority(Notification.PRIORITY_MAX)
                 .setOngoing(true)
                 .setAutoCancel(false)
@@ -307,6 +335,8 @@ public class NightWatchAlarmService extends Service {
 
     @Override
     public void onDestroy() {
+        sequenceActive = false;
+        paused = false;
         cancelScheduledPhases();
         stopAlertMedia();
         restoreAlarmVolume();

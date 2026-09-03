@@ -1,4 +1,4 @@
-# Night Watch v2
+# Night Watch v2.1 Security Edition
 
 Personal Android app that listens locally for notifications from Fiverr
 (`com.fiverr.fiverr`) and Upwork (`com.upwork.android.apps.main`). It displays
@@ -10,6 +10,21 @@ the notification title/client name and preview, then starts a repeated alarm.
 - No network permission is declared.
 - Notification data is not transmitted or saved.
 - All processing happens on the phone.
+- Client names and message previews are hidden while the phone is locked.
+- Backup, device transfer and cleartext network traffic are disabled.
+
+## Security
+
+- The release build is non-debuggable, optimized and signed outside GitHub with
+  a private, user-owned release key.
+- Internal alarm components are not exported. The required notification
+  listener is protected by Android's signature-level bind permission.
+- Pending intents are immutable, notification text is length-limited and
+  unsafe formatting controls are removed.
+- Repeated notifications cannot continually restart the active alarm sequence,
+  and the notification de-duplication cache is bounded.
+- GitHub Actions are pinned to exact reviewed commits and receive read-only
+  repository permissions.
 
 ## First-time setup
 

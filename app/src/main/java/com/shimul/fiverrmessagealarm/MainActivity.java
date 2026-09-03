@@ -146,7 +146,7 @@ public class MainActivity extends Activity {
         root.addView(testUpwork, buttonParams());
 
         TextView note = text(
-                "Important: keep Fiverr and Upwork notifications enabled, allow auto-start if your phone offers it, and exclude all three apps from battery optimization.",
+                "Security: client details stay hidden on the lock screen. Keep Fiverr and Upwork notifications enabled, allow auto-start if available, and exclude all three apps from battery optimization.",
                 13, Color.GRAY);
         note.setPadding(0, dp(22), 0, 0);
         root.addView(note);
@@ -245,6 +245,7 @@ public class MainActivity extends Activity {
         button.setText(value);
         button.setAllCaps(false);
         button.setTextSize(15);
+        button.setFilterTouchesWhenObscured(true);
         return button;
     }
 
