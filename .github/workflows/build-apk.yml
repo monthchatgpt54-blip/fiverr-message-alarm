@@ -49,6 +49,7 @@ jobs:
           test -f app/build/outputs/apk/release/app-release-unsigned.apk
           mkdir -p signing-tools/lib
           cp "$ANDROID_HOME/build-tools/35.0.0/apksigner" signing-tools/
+          cp "$ANDROID_HOME/build-tools/35.0.0/aapt2" signing-tools/
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" signing-tools/lib/
 
       - name: Upload unsigned release and verifier
@@ -58,6 +59,7 @@ jobs:
           path: |
             app/build/outputs/apk/release/app-release-unsigned.apk
             signing-tools/apksigner
+            signing-tools/aapt2
             signing-tools/lib/apksigner.jar
           if-no-files-found: error
           retention-days: 7

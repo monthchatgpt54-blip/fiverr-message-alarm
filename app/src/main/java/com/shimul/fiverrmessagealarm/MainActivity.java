@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
         scroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView title = text("Night Watch v2", 26, Color.rgb(28, 30, 33));
+        TextView title = text("Night Watch v2.1 Security", 26, Color.rgb(28, 30, 33));
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         root.addView(title);
 
