@@ -247,7 +247,7 @@ public class NightWatchAlarmService extends Service {
         try {
             player = new MediaPlayer();
             player.setAudioAttributes(alarmAttributes());
-            player.setDataSource(this, defaultAlarmUri());
+            player.setDataSource(this, getSelectedAlarmUri());
             player.setLooping(true);
             player.prepare();
             player.start();
@@ -313,6 +313,16 @@ public class NightWatchAlarmService extends Service {
         } catch (SecurityException ignored) {
         }
         originalAlarmVolume = -1;
+    }
+
+    private Uri getSelectedAlarmUri() {
+        String saved = AppPrefs.getRingtoneUri(this);
+        if (saved != null && !saved.isEmpty()) {
+            try {
+                return Uri.parse(saved);
+            } catch (Exception ignored) {}
+        }
+        return defaultAlarmUri();
     }
 
     private static Uri defaultAlarmUri() {

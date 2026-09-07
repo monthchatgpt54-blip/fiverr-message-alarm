@@ -23,8 +23,10 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 101;
+    private static final int REQUEST_RINGTONE = 102;
     private TextView accessStatus;
     private TextView fullScreenStatus;
+    private TextView selectedRingtoneText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -140,6 +142,14 @@ public class MainActivity extends Activity {
         });
         root.addView(batteryButton, buttonParams());
 
+        addSectionLabel(root, "Alarm Sound");
+        selectedRingtoneText = text("Default Ringtone", 14, Color.DKGRAY);
+        updateRingtoneText();
+        root.addView(selectedRingtoneText);
+        Button ringtoneButton = button("Select Custom Alarm Ringtone/Music");
+        ringtoneButton.setOnClickListener(v -> openRingtonePicker());
+        root.addView(ringtoneButton, buttonParams());
+
         addSectionLabel(root, "Test");
         Button testFiverr = button("Test Fiverr alarm");
         testFiverr.setTextColor(Color.WHITE);
@@ -170,6 +180,44 @@ public class MainActivity extends Activity {
         Intent intent = NightWatchAlarmService.newIntent(
                 this, platform, packageName, title, message);
         if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent); else startService(intent);
+    }
+
+    private void openRingtonePicker() {
+        Intent intent = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER);
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM);
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Alarm Tone");
+        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, 
+                AppPrefs.getRingtoneUri(this) != null ? Uri.parse(AppPrefs.getRingtoneUri(this)) : null);
+        startActivityForResult(intent, REQUEST_RINGTONE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_RINGTONE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+            if (uri != null) {
+                AppPrefs.setRingtoneUri(this, uri.toString());
+            } else {
+                AppPrefs.setRingtoneUri(this, "");
+            }
+            updateRingtoneText();
+        }
+    }
+
+    private void updateRingtoneText() {
+        if (selectedRingtoneText == null) return;
+        String uriStr = AppPrefs.getRingtoneUri(this);
+        if (uriStr == null || uriStr.isEmpty()) {
+            selectedRingtoneText.setText("Current: Default Alarm Tone");
+        } else {
+            try {
+                Uri uri = Uri.parse(uriStr);
+                String title = RingtoneManager.getRingtone(this, uri).getTitle(this);
+                selectedRingtoneText.setText("Current: " + title);
+            } catch (Exception e) {
+                selectedRingtoneText.setText("Current: Custom Sound");
+            }
+        }
     }
 
     private void requestNotificationPermissionIfNeeded() {
