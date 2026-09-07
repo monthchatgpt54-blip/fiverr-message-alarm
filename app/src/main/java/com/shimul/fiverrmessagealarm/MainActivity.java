@@ -53,12 +53,12 @@ public class MainActivity extends Activity {
         scroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView title = text("Night Watch v2.1 Security", 26, Color.rgb(28, 30, 33));
+        TextView title = text("Night Watch v3.0", 26, Color.rgb(28, 30, 33));
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         root.addView(title);
 
         TextView subtitle = text(
-                "24-hour local alarm watch for Fiverr and Upwork notifications. No marketplace login or external server is used.",
+                "24-hour local alarm watch for Fiverr, Upwork and WhatsApp notifications. No marketplace login or external server is used.",
                 15, Color.DKGRAY);
         subtitle.setPadding(0, dp(8), 0, dp(22));
         root.addView(subtitle);
