@@ -22,8 +22,6 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
 
-import java.io.IOException;
-
 public class NightWatchAlarmService extends Service {
     static final String CHANNEL_ID = "night_watch_alarm_v2";
     private static final String FALLBACK_CHANNEL_ID = "night_watch_fallback_v2";
@@ -32,8 +30,29 @@ public class NightWatchAlarmService extends Service {
     static final String EXTRA_PACKAGE = "alarm_package";
     static final String EXTRA_TITLE = "alarm_title";
     static final String EXTRA_TEXT = "alarm_text";
+    /** Set on the fallback path where no service is running, so AlarmActivity must not auto-close. */
+    static final String EXTRA_FALLBACK = "alarm_fallback";
     private static final int NOTIFICATION_ID = 3702;
     private static final int FALLBACK_NOTIFICATION_ID = 3703;
+    // Ring + pause cycles plus a safety margin. Must cover the whole sequence.
+    private static final long WAKE_LOCK_TIMEOUT_MS =
+            (AppPrefs.RING_SECONDS + AppPrefs.PAUSE_SECONDS) * AppPrefs.REPEAT_COUNT * 1000L + 60_000L;
+
+    /** Lets AlarmActivity close itself when the sequence finishes or is stopped. */
+    interface SequenceListener {
+        void onSequenceEnded();
+    }
+
+    private static volatile SequenceListener sequenceListener;
+    private static volatile boolean running;
+
+    static void setSequenceListener(SequenceListener listener) {
+        sequenceListener = listener;
+    }
+
+    static boolean isRunning() {
+        return running;
+    }
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable finishRingPhase = this::finishRingPhase;
@@ -42,7 +61,6 @@ public class NightWatchAlarmService extends Service {
     private Vibrator vibrator;
     private PowerManager.WakeLock wakeLock;
     private AudioManager audioManager;
-    private int originalAlarmVolume = -1;
     private int currentCycle = 1;
     private boolean sequenceActive;
     private boolean paused;
@@ -61,13 +79,12 @@ public class NightWatchAlarmService extends Service {
     }
 
     static void createChannel(Context context) {
-        if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         if (manager == null) return;
 
         NotificationChannel alarmChannel = new NotificationChannel(
                 CHANNEL_ID, "Night Watch alarms", NotificationManager.IMPORTANCE_HIGH);
-        alarmChannel.setDescription("Repeated alarm for Fiverr and Upwork notifications");
+        alarmChannel.setDescription("Repeated alarm for marketplace notifications");
         alarmChannel.enableVibration(true);
         alarmChannel.setLockscreenVisibility(Notification.VISIBILITY_PRIVATE);
         alarmChannel.setSound(null, null);
@@ -85,7 +102,8 @@ public class NightWatchAlarmService extends Service {
     static void showFallbackNotification(Context context, String platform, String packageName,
                                          String title, String text) {
         createChannel(context);
-        Intent screen = alarmScreenIntent(context, platform, packageName, title, text);
+        Intent screen = alarmScreenIntent(context, platform, packageName, title, text)
+                .putExtra(EXTRA_FALLBACK, true);
         PendingIntent fullScreen = PendingIntent.getActivity(context, 40, screen,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification publicVersion = new Notification.Builder(context, FALLBACK_CHANNEL_ID)
@@ -103,7 +121,6 @@ public class NightWatchAlarmService extends Service {
                 .setCategory(Notification.CATEGORY_MESSAGE)
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setPublicVersion(publicVersion)
-                .setPriority(Notification.PRIORITY_MAX)
                 .setContentIntent(fullScreen)
                 .setFullScreenIntent(fullScreen, true)
                 .setAutoCancel(true)
@@ -113,15 +130,36 @@ public class NightWatchAlarmService extends Service {
         if (manager != null) manager.notify(FALLBACK_NOTIFICATION_ID, notification);
     }
 
+    /**
+     * If a previous run was killed before it could restore the alarm volume, the saved value
+     * is still in prefs. Restore it now. Safe to call from anywhere; no-op if nothing is saved
+     * or a sequence is currently active.
+     */
+    static void restoreStaleAlarmVolume(Context context) {
+        if (running) return;
+        int saved = AppPrefs.getSavedAlarmVolume(context);
+        if (saved < 0) return;
+        AudioManager am = (AudioManager) context.getSystemService(AUDIO_SERVICE);
+        if (am != null) {
+            try {
+                am.setStreamVolume(AudioManager.STREAM_ALARM, saved, 0);
+            } catch (SecurityException ignored) {
+            }
+        }
+        AppPrefs.clearSavedAlarmVolume(context);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
         createChannel(this);
+        restoreStaleAlarmVolume(this);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+        if (intent == null) {
+            // START_NOT_STICKY means this should not happen, but never ring with no context.
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -131,10 +169,12 @@ public class NightWatchAlarmService extends Service {
         title = safe(intent, EXTRA_TITLE, "New " + platform + " message");
         message = safe(intent, EXTRA_TEXT, "Open " + platform + " to view the message.");
         if (sequenceActive) {
+            // A newer message arrived mid-sequence: refresh the text, do not restart the cycle.
             updateNotification(paused);
             return START_NOT_STICKY;
         }
         sequenceActive = true;
+        running = true;
         currentCycle = 1;
         cancelScheduledPhases();
         stopAlertMedia();
@@ -191,7 +231,8 @@ public class NightWatchAlarmService extends Service {
         PendingIntent stop = PendingIntent.getBroadcast(this, 21, stopIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Intent launch = getPackageManager().getLaunchIntentForPackage(targetPackage);
+        Intent launch = targetPackage.isEmpty()
+                ? null : getPackageManager().getLaunchIntentForPackage(targetPackage);
         if (launch == null) launch = new Intent(this, MainActivity.class);
         PendingIntent open = PendingIntent.getActivity(this, 22, launch,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -219,7 +260,6 @@ public class NightWatchAlarmService extends Service {
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setVisibility(Notification.VISIBILITY_PRIVATE)
                 .setPublicVersion(publicVersion)
-                .setPriority(Notification.PRIORITY_MAX)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setContentIntent(fullScreen)
@@ -242,20 +282,44 @@ public class NightWatchAlarmService extends Service {
                         Intent.FLAG_ACTIVITY_SINGLE_TOP);
     }
 
+    // ---------------------------------------------------------------- sound
+
     private void startAlarmSound() {
         applyMaxAlarmVolume();
+        if (AppPrefs.isRingtoneSilent(this)) return; // user explicitly chose Silent
+
+        // 1) user-selected tone, 2) default alarm, 3) default notification sound.
+        // A custom tone can fail (URI permission was granted to MainActivity only, file
+        // deleted, SD card removed). Never let that make the alarm silent.
+        if (tryPlay(parseSavedRingtone())) return;
+        if (tryPlay(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))) return;
+        tryPlay(Settings.System.DEFAULT_NOTIFICATION_URI);
+    }
+
+    private Uri parseSavedRingtone() {
+        String saved = AppPrefs.getRingtoneUri(this);
+        if (saved == null || saved.isEmpty()) return null;
         try {
-            player = new MediaPlayer();
-            player.setAudioAttributes(alarmAttributes());
-            player.setDataSource(this, getSelectedAlarmUri());
-            player.setLooping(true);
-            player.prepare();
-            player.start();
-        } catch (IOException | IllegalStateException | SecurityException error) {
-            if (player != null) {
-                player.release();
-                player = null;
-            }
+            return Uri.parse(saved);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private boolean tryPlay(Uri uri) {
+        if (uri == null) return false;
+        MediaPlayer mp = new MediaPlayer();
+        try {
+            mp.setAudioAttributes(alarmAttributes());
+            mp.setDataSource(this, uri);
+            mp.setLooping(true);
+            mp.prepare();
+            mp.start();
+            player = mp;
+            return true;
+        } catch (Exception error) { // IOException, IllegalState, Security, IllegalArgument
+            mp.release();
+            return false;
         }
     }
 
@@ -263,14 +327,29 @@ public class NightWatchAlarmService extends Service {
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         if (audioManager == null || !AppPrefs.useMaxVolume(this)) return;
         try {
-            if (originalAlarmVolume < 0) {
-                originalAlarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
+            if (AppPrefs.getSavedAlarmVolume(this) < 0) {
+                // Persist BEFORE raising, so a process kill can still be undone later.
+                AppPrefs.setSavedAlarmVolume(this,
+                        audioManager.getStreamVolume(AudioManager.STREAM_ALARM));
             }
             int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
             audioManager.setStreamVolume(AudioManager.STREAM_ALARM, max, 0);
         } catch (SecurityException ignored) {
-            originalAlarmVolume = -1;
+            // DND without notification-policy access. Leave whatever is saved as-is.
         }
+    }
+
+    private void restoreAlarmVolume() {
+        int saved = AppPrefs.getSavedAlarmVolume(this);
+        if (saved < 0) return;
+        if (audioManager == null) audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audioManager != null) {
+            try {
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, saved, 0);
+            } catch (SecurityException ignored) {
+            }
+        }
+        AppPrefs.clearSavedAlarmVolume(this);
     }
 
     private void startVibration() {
@@ -298,31 +377,12 @@ public class NightWatchAlarmService extends Service {
         if (manager == null) return;
         wakeLock = manager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 getPackageName() + ":night-watch-alarm");
-        wakeLock.acquire(10 * 60 * 1000L);
+        wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
     }
 
     private void cancelScheduledPhases() {
         handler.removeCallbacks(finishRingPhase);
         handler.removeCallbacks(startNextCycle);
-    }
-
-    private void restoreAlarmVolume() {
-        if (audioManager == null || originalAlarmVolume < 0) return;
-        try {
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalAlarmVolume, 0);
-        } catch (SecurityException ignored) {
-        }
-        originalAlarmVolume = -1;
-    }
-
-    private Uri getSelectedAlarmUri() {
-        String saved = AppPrefs.getRingtoneUri(this);
-        if (saved != null && !saved.isEmpty()) {
-            try {
-                return Uri.parse(saved);
-            } catch (Exception ignored) {}
-        }
-        return defaultAlarmUri();
     }
 
     private static Uri defaultAlarmUri() {
@@ -346,12 +406,15 @@ public class NightWatchAlarmService extends Service {
     @Override
     public void onDestroy() {
         sequenceActive = false;
+        running = false;
         paused = false;
         cancelScheduledPhases();
         stopAlertMedia();
         restoreAlarmVolume();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-        stopForeground(true);
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        SequenceListener listener = sequenceListener;
+        if (listener != null) listener.onSequenceEnded();
         super.onDestroy();
     }
 

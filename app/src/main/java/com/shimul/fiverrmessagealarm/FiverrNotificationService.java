@@ -2,7 +2,6 @@ package com.shimul.fiverrmessagealarm;
 
 import android.app.Notification;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -32,7 +31,7 @@ public class FiverrNotificationService extends NotificationListenerService {
             platform = "Fiverr";
         } else if (UPWORK_PACKAGE.equals(packageName) && AppPrefs.isUpworkEnabled(this)) {
             platform = "Upwork";
-        } else if ((WHATSAPP_PACKAGE.equals(packageName) || WHATSAPP_BUSINESS_PACKAGE.equals(packageName)) 
+        } else if ((WHATSAPP_PACKAGE.equals(packageName) || WHATSAPP_BUSINESS_PACKAGE.equals(packageName))
                 && AppPrefs.isWhatsappEnabled(this)) {
             platform = "WhatsApp";
         } else {
@@ -40,7 +39,7 @@ public class FiverrNotificationService extends NotificationListenerService {
         }
 
         Notification notification = sbn.getNotification();
-        if (notification == null || (notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
+        if (notification == null || !isRealMessage(sbn, notification)) return;
 
         long now = System.currentTimeMillis();
         pruneRecentNotifications(now);
@@ -60,9 +59,41 @@ public class FiverrNotificationService extends NotificationListenerService {
 
         Intent intent = NightWatchAlarmService.newIntent(this, platform, packageName, title, text);
         try {
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent); else startService(intent);
+            startForegroundService(intent);
         } catch (RuntimeException restricted) {
+            // ForegroundServiceStartNotAllowedException (API 31+) or any OEM restriction.
             NightWatchAlarmService.showFallbackNotification(this, platform, packageName, title, text);
+        }
+    }
+
+    /**
+     * Drop everything that is not an actual incoming message:
+     *  - group summaries (the real child notification follows separately)
+     *  - ongoing / foreground-service banners ("WhatsApp Web is active", "Backing up…",
+     *    "Checking for new messages", music/transport controls)
+     *  - calls, progress bars, status and system notices
+     * Without this filter a single WhatsApp backup notification starts a 9-minute alarm.
+     */
+    private static boolean isRealMessage(StatusBarNotification sbn, Notification n) {
+        int flags = n.flags;
+        if ((flags & Notification.FLAG_GROUP_SUMMARY) != 0) return false;
+        if ((flags & Notification.FLAG_ONGOING_EVENT) != 0) return false;
+        if ((flags & Notification.FLAG_FOREGROUND_SERVICE) != 0) return false;
+        if (sbn.isOngoing()) return false;
+
+        String category = n.category;
+        if (category == null) return true; // Fiverr / Upwork often leave it unset - allow.
+        switch (category) {
+            case Notification.CATEGORY_SERVICE:
+            case Notification.CATEGORY_PROGRESS:
+            case Notification.CATEGORY_CALL:
+            case Notification.CATEGORY_STATUS:
+            case Notification.CATEGORY_SYSTEM:
+            case Notification.CATEGORY_TRANSPORT:
+            case Notification.CATEGORY_ERROR:
+                return false;
+            default:
+                return true;
         }
     }
 

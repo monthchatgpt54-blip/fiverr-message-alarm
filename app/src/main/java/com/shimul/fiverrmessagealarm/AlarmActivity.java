@@ -5,26 +5,22 @@ import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.ViewGroup;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-public class AlarmActivity extends Activity {
+public class AlarmActivity extends Activity implements NightWatchAlarmService.SequenceListener {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (Build.VERSION.SDK_INT >= 27) {
+        // minSdk is 26, but setShowWhenLocked/setTurnScreenOn are API 27+. The manifest
+        // attributes showWhenLocked / turnScreenOn already cover API 26.
+        if (android.os.Build.VERSION.SDK_INT >= 27) {
             setShowWhenLocked(true);
             setTurnScreenOn(true);
-        } else {
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
         setContentView(buildScreen(getIntent()));
     }
@@ -39,7 +35,27 @@ public class AlarmActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Rebuild so lock-state redaction is re-evaluated after the user unlocks.
         setContentView(buildScreen(getIntent()));
+        NightWatchAlarmService.setSequenceListener(this);
+        // Opened from a stale notification after the service already finished? Close.
+        // (Not on the fallback path - there is no service in that case by design.)
+        boolean fallback = getIntent().getBooleanExtra(NightWatchAlarmService.EXTRA_FALLBACK, false);
+        if (!fallback && !NightWatchAlarmService.isRunning()) {
+            finishAndRemoveTask();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        NightWatchAlarmService.setSequenceListener(null);
+        super.onPause();
+    }
+
+    /** Called by the service (main thread) when all cycles finish or Stop is pressed anywhere. */
+    @Override
+    public void onSequenceEnded() {
+        if (!isFinishing()) finishAndRemoveTask();
     }
 
     private LinearLayout buildScreen(Intent intent) {
@@ -93,9 +109,10 @@ public class AlarmActivity extends Activity {
         open.setFilterTouchesWhenObscured(true);
         open.setOnClickListener(v -> {
             stopService(new Intent(this, NightWatchAlarmService.class));
-            Intent launch = getPackageManager().getLaunchIntentForPackage(appPackage);
+            Intent launch = appPackage.isEmpty()
+                    ? null : getPackageManager().getLaunchIntentForPackage(appPackage);
             if (launch != null) startActivity(launch);
-            finish();
+            finishAndRemoveTask();
         });
         LinearLayout.LayoutParams openParams = fullWidth();
         openParams.topMargin = dp(12);

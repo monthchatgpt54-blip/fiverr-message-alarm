@@ -11,6 +11,11 @@ final class AppPrefs {
     static final String UPWORK_ENABLED = "upwork_enabled";
     static final String WHATSAPP_ENABLED = "whatsapp_enabled";
     static final String RINGTONE_URI = "ringtone_uri";
+    /** Alarm-stream volume saved before the service raised it to max. -1 = nothing saved. */
+    static final String SAVED_ALARM_VOLUME = "saved_alarm_volume";
+    /** Sentinel stored in RINGTONE_URI when the user explicitly picked "Silent". */
+    static final String RINGTONE_SILENT = "silent";
+
     static final int RING_SECONDS = 120;
     static final int PAUSE_SECONDS = 60;
     static final int REPEAT_COUNT = 3;
@@ -37,8 +42,13 @@ final class AppPrefs {
         return get(context).getBoolean(UPWORK_ENABLED, true);
     }
 
+    /**
+     * OFF by default. WhatsApp is a personal messenger, not a marketplace; the user must
+     * opt in explicitly so upgrading from v2.x does not silently start alarming on every
+     * WhatsApp notification.
+     */
     static boolean isWhatsappEnabled(Context context) {
-        return get(context).getBoolean(WHATSAPP_ENABLED, true);
+        return get(context).getBoolean(WHATSAPP_ENABLED, false);
     }
 
     static String getRingtoneUri(Context context) {
@@ -49,8 +59,20 @@ final class AppPrefs {
         get(context).edit().putString(RINGTONE_URI, uri).apply();
     }
 
-    // Kept only so the v1 class remains source-compatible; v2 uses fixed cycles above.
-    static int durationSeconds(Context context) {
-        return 60;
+    static boolean isRingtoneSilent(Context context) {
+        return RINGTONE_SILENT.equals(getRingtoneUri(context));
+    }
+
+    static int getSavedAlarmVolume(Context context) {
+        return get(context).getInt(SAVED_ALARM_VOLUME, -1);
+    }
+
+    static void setSavedAlarmVolume(Context context, int volume) {
+        // commit() (synchronous) on purpose: this must hit disk before the process can be killed.
+        get(context).edit().putInt(SAVED_ALARM_VOLUME, volume).commit();
+    }
+
+    static void clearSavedAlarmVolume(Context context) {
+        get(context).edit().remove(SAVED_ALARM_VOLUME).commit();
     }
 }
