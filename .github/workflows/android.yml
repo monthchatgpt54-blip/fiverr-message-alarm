@@ -19,14 +19,14 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
     - name: Build with Gradle
-      run: gradle assembleDebug -x lint --no-daemon
+      run: ./gradlew assembleDebug --stacktrace
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: NightWatch-V3-APK
+        name: NightWatch-Pro-V3-APK
         path: app/build/outputs/apk/debug/app-debug.apk
