@@ -84,6 +84,14 @@ public class MainActivity extends Activity {
                 AppPrefs.get(this).edit().putBoolean(AppPrefs.UPWORK_ENABLED, checked).apply());
         root.addView(upwork, matchWrap());
 
+        CheckBox whatsapp = new CheckBox(this);
+        whatsapp.setText("Watch WhatsApp notifications");
+        whatsapp.setTextSize(16);
+        whatsapp.setChecked(AppPrefs.isWhatsappEnabled(this));
+        whatsapp.setOnCheckedChangeListener((button, checked) ->
+                AppPrefs.get(this).edit().putBoolean(AppPrefs.WHATSAPP_ENABLED, checked).apply());
+        root.addView(whatsapp, matchWrap());
+
         CheckBox maxVolume = new CheckBox(this);
         maxVolume.setText("Temporarily use maximum alarm volume");
         maxVolume.setTextSize(16);
@@ -144,6 +152,11 @@ public class MainActivity extends Activity {
         testUpwork.setOnClickListener(v -> startTest(
                 "Upwork", "com.upwork.android.apps.main", "Test Client", "This is a local Upwork test message."));
         root.addView(testUpwork, buttonParams());
+
+        Button testWhatsapp = button("Test WhatsApp alarm");
+        testWhatsapp.setOnClickListener(v -> startTest(
+                "WhatsApp", "com.whatsapp", "Test Contact", "This is a local WhatsApp test message."));
+        root.addView(testWhatsapp, buttonParams());
 
         TextView note = text(
                 "Security: client details stay hidden on the lock screen. Keep Fiverr and Upwork notifications enabled, allow auto-start if available, and exclude all three apps from battery optimization.",

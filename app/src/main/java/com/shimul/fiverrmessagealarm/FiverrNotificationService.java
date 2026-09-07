@@ -14,6 +14,8 @@ import java.util.Map;
 public class FiverrNotificationService extends NotificationListenerService {
     private static final String FIVERR_PACKAGE = "com.fiverr.fiverr";
     private static final String UPWORK_PACKAGE = "com.upwork.android.apps.main";
+    private static final String WHATSAPP_PACKAGE = "com.whatsapp";
+    private static final String WHATSAPP_BUSINESS_PACKAGE = "com.whatsapp.w4b";
     private static final long DUPLICATE_WINDOW_MS = 30_000L;
     private static final long ENTRY_TTL_MS = 10 * 60_000L;
     private static final int MAX_RECENT_ENTRIES = 128;
@@ -30,6 +32,9 @@ public class FiverrNotificationService extends NotificationListenerService {
             platform = "Fiverr";
         } else if (UPWORK_PACKAGE.equals(packageName) && AppPrefs.isUpworkEnabled(this)) {
             platform = "Upwork";
+        } else if ((WHATSAPP_PACKAGE.equals(packageName) || WHATSAPP_BUSINESS_PACKAGE.equals(packageName)) 
+                && AppPrefs.isWhatsappEnabled(this)) {
+            platform = "WhatsApp";
         } else {
             return;
         }

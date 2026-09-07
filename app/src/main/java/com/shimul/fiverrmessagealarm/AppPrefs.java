@@ -9,6 +9,7 @@ final class AppPrefs {
     static final String MAX_VOLUME = "max_volume";
     static final String FIVERR_ENABLED = "fiverr_enabled";
     static final String UPWORK_ENABLED = "upwork_enabled";
+    static final String WHATSAPP_ENABLED = "whatsapp_enabled";
     static final int RING_SECONDS = 120;
     static final int PAUSE_SECONDS = 60;
     static final int REPEAT_COUNT = 3;
@@ -33,6 +34,10 @@ final class AppPrefs {
 
     static boolean isUpworkEnabled(Context context) {
         return get(context).getBoolean(UPWORK_ENABLED, true);
+    }
+
+    static boolean isWhatsappEnabled(Context context) {
+        return get(context).getBoolean(WHATSAPP_ENABLED, true);
     }
 
     // Kept only so the v1 class remains source-compatible; v2 uses fixed cycles above.

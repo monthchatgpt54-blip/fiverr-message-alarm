@@ -12,6 +12,8 @@
     <queries>
         <package android:name="com.fiverr.fiverr" />
         <package android:name="com.upwork.android.apps.main" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
     </queries>
 
     <application
